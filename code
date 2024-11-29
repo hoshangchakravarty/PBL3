@@ -1,0 +1,512 @@
+import streamlit as st
+import paho.mqtt.client as mqtt
+import ssl
+import threading
+import queue
+import pandas as pd
+from datetime import datetime, timedelta
+from streamlit
+_
+autorefresh import st
+_
+autorefresh
+# Set page configuration
+st.set
+_page
+_
+config(
+page
+_
+title="MUJ Attendance Monitoring"
+,
+page
+icon="📡"
+,
+_
+layout="wide"
+,
+initial
+sidebar
+_
+_
+state="expanded"
+,
+)
+# Apply custom CSS styling
+st.markdown("""
+<style>
+.main {
+background-color: #f0f2f6;
+}
+.stButton > button {
+color: white;
+background-color: #FF4B4B;
+}
+.stAlert {
+background-color: #E8F0FE;
+}
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+color: #FF4B4B;
+}
+</style>
+"""
+, unsafe
+allow
+_
+_
+html=True)
+# Auto-refresh the app every 2.5 seconds
+st
+_
+autorefresh(interval=2500, key="refresh")
+# Initialize session
+state variables
+_
+if 'student
+_present' not in st.session
+state:
+_
+st.session
+_
+state['student
+_present'] = False
+if 'last
+seen' not in st.session
+_
+st.session
+_
+state['last
+_
+state:
+_
+seen'] = None
+if 'student
+data' not in st.session
+state:
+_
+_
+# Initialize with empty DataFrame
+st.session
+_
+state['student
+_
+data'] = pd.DataFrame(columns=['Timestamp'
+,
+'Status'])
+# Student Information
+STUDENT
+_
+NUMBER = "229311259" # Replace with the actual student number
+STUDENT
+_
+NAME = "John Doe" # Replace with the actual student's name
+# MQTT Broker Information
+MQTT
+_
+BROKER = "550400ab5c0a4d15a091aa8699ccccf9.s1.eu.hivemq.cloud"
+MQTT
+PORT = 8883
+_
+MQTT
+CLIENT
+ID = "streamlit
+client" # Use a different client ID from the Pico W
+_
+_
+_
+MQTT
+USERNAME = "zzz"
+_
+MQTT
+PASSWORD = "zzz"
+_
+MQTT
+_
+TOPIC = "picow/number"
+@st.cache
+resource
+_
+def init
+_
+mqtt
+_
+client():
+message
+_queue = queue.Queue()
+def on
+_
+connect(client, userdata, flags, rc):
+if rc == 0:
+print("Connected to MQTT Broker!")
+client.subscribe(MQTT
+_
+TOPIC)
+print(f"Subscribed to topic: {MQTT
+_
+else:
+TOPIC}")
+print(f"Failed to connect, return code {rc}")
+def on
+_
+message(client, userdata, msg):
+student
+_
+number = msg.payload.decode('utf-8')
+print(f"Received student number: {student
+_
+number} from topic: {msg.topic}")
+# Put the student number into the queue
+message
+_queue.put(student
+_
+number)
+# Create an MQTT client instance with MQTT v3.1.1 protocol
+client = mqtt.Client(client
+id=MQTT
+CLIENT
+_
+_
+_
+ID, protocol=mqtt.MQTTv311)
+# Set username and password
+client.username
+_pw
+_
+set(MQTT
+USERNAME, MQTT
+_
+_
+PASSWORD)
+# Configure TLS/SSL settings
+client.tls
+_
+set(
+cert
+_
+reqs=ssl.CERT
+_
+NONE, tls
+version=ssl.PROTOCOL
+TLSv1
+# Disable certificate verification (use with caution)
+2, # Use TLS v1.2
+_
+_
+_
+)
+client.tls
+insecure
+_
+_
+set(True) # Allow insecure server connections (use with caution)
+# Assign event callbacks
+client.on
+connect = on
+_
+_
+client.on
+_
+message = on
+_
+connect
+message
+# Connect to the broker
+client.connect(MQTT
+BROKER, MQTT
+_
+_
+PORT , keepalive=60)
+# Start the network loop in a separate thread
+client.loop_
+start()
+return client, message
+_queue
+# Initialize the MQTT client and message queue
+client, message
+_queue = init
+_
+mqtt
+_
+client()
+# Streamlit app layout
+st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>MUJ Attendance Monitoring
+📡</h1>"
+, unsafe
+allow
+_
+_
+html=True)
+st.markdown("<hr>"
+, unsafe
+allow
+_
+_
+html=True)
+# Placeholder for student presence display
+presence
+_placeholder = st.empty()
+# Update student presence from the queue
+try:
+# Try to get messages from the queue without blocking
+print("Attempting to get message from queue")
+while True:
+student
+_
+number = message
+_queue.get
+_
+nowait()
+print(f"Got message from queue: {student
+_
+number}")
+if student
+number == STUDENT
+NUMBER:
+_
+_
+st.session
+_
+state['student
+_present'] = True
+st.session
+_
+state['last
+_
+seen'] = datetime.now()
+# Append the new status to the DataFrame
+new
+_
+data = pd.DataFrame({
+'Timestamp': [st.session
+_
+state['last
+_
+seen']],
+'Status': ['Present']
+})
+st.session
+_
+state['student
+_
+data'] = pd.concat(
+[st.session
+_
+state['student
+_
+data'], new
+_
+data],
+ignore
+index=True
+_
+)
+else:
+# Handle unexpected student numbers if necessary
+print(f"Received unexpected student number: {student
+_
+except queue.Empty:
+# No new messages in the queue
+print("No new messages in the queue")
+except Exception as e:
+print(f"Error while processing messages: {e}")
+number}")
+# Check if the student has been seen in the last 5 seconds
+if st.session
+_
+state['last
+_
+seen']:
+time
+since
+last
+_
+_
+_
+seen = datetime.now() - st.session
+_
+state['last
+_
+if time
+since
+last
+_
+_
+_
+seen > timedelta(seconds=5):
+st.session
+_
+state['student
+_present'] = False
+seen']
+else:
+st.session
+_
+state['student
+_present'] = False
+# Display the student's presence
+with st.container():
+col1, col2 = st.columns([1, 3])
+if st.session
+_
+state['student
+_present']:
+with col1:
+st.image("https://i.imgur.com/6LqC0Tj.png"
+, width=100) # Green checkmark
+with col2:
+st.markdown(f"<h2 style='color: #28a745;'>✅{STUDENT
+_
+NAME} is present in the
+classroom.
+</h2>"
+, unsafe
+allow
+_
+_
+html=True)
+st.write(f"**Last seen at:** {st.session
+_
+state['last
+_
+seen'].strftime('%Y-%m-%d
+%H:%M:%S')}")
+else:
+with col1:
+st.image("https://i.imgur.com/3XoXx0F .png"
+, width=100) # Red cross
+with col2:
+st.markdown(f"<h2 style='color: #dc3545;'>❌{STUDENT
+_
+NAME} is not
+present.
+</h2>"
+, unsafe
+allow
+_
+_
+html=True)
+if st.session
+_
+state['last
+_
+seen']:
+st.write(f"**Last seen at:** {st.session
+_
+state['last
+_
+seen'].strftime('%Y-%m-%d
+%H:%M:%S')}")
+else:
+st.write("Waiting for the student to be detected...
+")
+st.markdown("<hr>"
+, unsafe
+allow
+_
+_
+html=True)
+# Optional: Display a history of presence
+if not st.session
+_
+state['student
+_
+data'].empty:
+st.markdown("#### Presence History")
+st.dataframe(
+st.session
+_
+state['student
+_
+data'].sort
+_
+values(by='Timestamp'
+, ascending=False),
+height=200
+)
+else:
+st.markdown("No presence data available yet.
+")
+import machine
+import network
+import bluetooth
+# Constants for BLE events
+BT
+IRQ
+SCAN
+RESULT = 5
+_
+_
+_
+_
+BT
+IRQ
+SCAN
+DONE = 6
+_
+_
+_
+_
+led = machine.Pin('LED'
+, machine.Pin.OUT)
+def connect():
+ssid = "RedactedSSID" # WiFi credentials hidden
+password = "RedactedPassword"
+wlan = network.WLAN(network.STA
+_
+IF)
+wlan.active(True)
+# Basic connection logic
+while True:
+wlan.connect(ssid, password)
+if wlan.isconnected():
+print("Connected to WiFi!")
+return wlan
+print("Retrying WiFi connection...
+")
+def connectMQTT():
+# Simplified MQTT connection setup
+print("Connecting to MQTT Broker...
+")
+client = None # Details redacted
+return client
+def publish(topic, value):
+# Placeholder for publishing logic
+print("Publishing to topic:"
+, topic)
+class BLEScanner:
+def
+init
+__
+__(self):
+self.ble = bluetooth.BLE()
+self.ble.active(True)
+def bt
+_
+irq(self, event, data):
+# Simplified IRQ handler
+pass
+def start
+_
+scan(self, scan
+time
+_
+_
+print("Starting BLE scan...
+")
+# Scanning logic removed
+ms=2000):
+# Main execution flow redacted for brevity
+wlan = connect()
+client = connectMQTT()
+scanner = BLEScanner()
+while True:
+scanner.start
+_
+scan()
+# Process scan results (logic removed)
+print("Scan completed.
+")
+led.value(True)
+machine.sleep(500)
+led.value(False)
+machine.sleep(5000)
